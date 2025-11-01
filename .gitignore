@@ -25,3 +25,7 @@ Cargo.lock
 
 # Documentation output
 /target/doc/
+
+# Added by cargo
+
+/target
