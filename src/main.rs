@@ -1,7 +1,17 @@
 use std::path::Path;
 use std::fs;
+use std::env;
+
+mod populate;
 
 fn main() {
+    // get command line args
+    let args: Vec<String> = env::args().collect();
+    let cmd = handle_args(&args);
+
+    const POPULATE_CMD: &str = "populate";
+    const CLEAR_CMD: &str = "clear";
+
     // define params
     let sandbox_path = Path::new("./test");
 
@@ -14,13 +24,41 @@ fn main() {
         }
     }
 
-    // list out all files in sandbox, returns `io::Result<Vec<Path>>`
-    match fs::read_dir(sandbox_path) {
-        Err(why) => println!("! {:?}", why.kind()),
-        Ok(paths) => for path in paths {
-            println!("> {:?}", path.unwrap().path());
+    match cmd.as_deref() {
+        Some(POPULATE_CMD) => {
+            populate::populate_dir(sandbox_path);
         },
+        Some(CLEAR_CMD) => {
+            populate::clear_dir(sandbox_path);
+        },
+        Some(unknown) => {
+            println!("Unknown command: {}", unknown);
+        },
+        None => {
+            // No command provided
+        }
     }
+}
 
-    // sort by file extension
+fn handle_args(args: &[String]) -> Option<String> {
+    if args.len() < 2 {
+        println!("No command provided.");
+        return None;
+    }
+    Some(args[1].clone())
+}
+
+fn list_files(path: &Path) {
+    if path.is_dir() {
+        for entry in fs::read_dir(path).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_file() {
+                println!("File: {:?}", path);
+            } else if path.is_dir() {
+                println!("Dir: {:?}", path);
+                list_files(&path);
+            }
+        }
+    }
 }
