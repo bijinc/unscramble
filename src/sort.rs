@@ -3,8 +3,7 @@ use std::path::Path;
 use crate::cli::SortOptions;
 
 pub fn sort_dir(path: &Path, options: &SortOptions) {
-    println!("Sorting directory: {}", path.display());
-    println!("Options: {:?}", options);
+    println!("Sorting directory: {} {}", path.display(), options);
 
     for files in std::fs::read_dir(path).unwrap() {
         let file = files.unwrap();

@@ -12,7 +12,7 @@ fn main() {
     
     // Setup sandbox directory
     if cli.path.exists() {
-        println!("Sandbox path set: {}", cli.path.display());
+        println!("path: {}", cli.path.display());
     } else {
         match fs::create_dir_all(&cli.path) {
             Ok(_) => println!("Sandbox directory created: {}", cli.path.display()),
