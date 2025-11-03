@@ -13,7 +13,7 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
     
-    /// Path to the sandbox directory
+    /// Path to the directory
     #[arg(short, long, default_value = "./test")]
     pub path: PathBuf,
 }
@@ -22,33 +22,37 @@ pub struct Cli {
 pub enum Commands {
     /// Populate the directory with test files
     Populate,
+    
     /// Clear all files from the directory
     Clear,
+    
     /// Sort files in the directory based on criteria
-    Sort,
+    Sort {
+        /// Sort files by extension
+        #[arg(short='e', long, default_value = "true")]
+        ext: bool,
+        
+        /// Sort files by name
+        #[arg(short='n', long, default_value = "false")]
+        name: bool,
+        
+        /// Recursively sort subdirectories
+        #[arg(short='r', long, default_value = "false")]
+        recursive: bool,
+    },
 }
 
 /// Options for sorting files
 #[derive(Debug, Clone)]
-pub struct Options {
-    pub by_ext: bool,
-    pub by_name: bool,
+pub struct SortOptions {
+    pub ext: bool,
+    pub name: bool,
     pub recursive: bool,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            by_ext: true,
-            by_name: false,
-            recursive: false,
-        }
-    }
 }
 
 impl Commands {
     /// Execute the command with the given path
-    pub fn execute(&self, path: &Path, options: &Options) -> Result<(), String> {
+    pub fn execute(&self, path: &Path) -> Result<(), String> {
         match self {
             Commands::Populate => {
                 populate::populate_dir(path);
@@ -58,8 +62,13 @@ impl Commands {
                 populate::clear_dir(path);
                 Ok(())
             }
-            Commands::Sort => {
-                sort::sort_dir(path, options);
+            Commands::Sort { ext, name, recursive } => {
+                let options = SortOptions {
+                    ext: *ext,
+                    name: *name,
+                    recursive: *recursive,
+                };
+                sort::sort_dir(path, &options);
                 Ok(())
             }
         }

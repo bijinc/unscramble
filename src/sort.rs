@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use crate::Options;
+use crate::cli::SortOptions;
 
-pub fn sort_dir(path: &Path, options: &Options) {
+pub fn sort_dir(path: &Path, options: &SortOptions) {
     println!("Sorting directory: {}", path.display());
     println!("Options: {:?}", options);
 
@@ -11,7 +11,7 @@ pub fn sort_dir(path: &Path, options: &Options) {
         let file_path = file.path();
 
         if file_path.is_file() {
-            if options.by_ext {
+            if options.ext {
                 if let Some(ext) = file_path.extension() {
                     let ext_dir = path.join(ext);
                     std::fs::create_dir_all(&ext_dir).unwrap();

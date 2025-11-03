@@ -2,6 +2,7 @@ use std::fs;
 use clap::Parser;
 
 mod populate;
+mod sort;
 mod cli;
 
 use cli::Cli;
@@ -28,3 +29,9 @@ fn main() {
         std::process::exit(1);
     }
 }
+
+// next steps
+// 1. implement sort by extension to get my hands dirty
+// semantic sort
+// - create vector embeddings of all files and folders in the dir
+// - use cosine similarity to find 
