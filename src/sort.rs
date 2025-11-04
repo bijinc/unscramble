@@ -3,7 +3,9 @@ use std::path::Path;
 use crate::cli::SortOptions;
 
 pub fn sort_dir(path: &Path, options: &SortOptions) {
-    println!("Sorting directory: {} {}", path.display(), options);
+    println!("Sorting directory: {} {:?}", path.display(), options);
+
+    // get all files and folders and store them temporarily
 
     for files in std::fs::read_dir(path).unwrap() {
         let file = files.unwrap();
@@ -12,11 +14,14 @@ pub fn sort_dir(path: &Path, options: &SortOptions) {
         if file_path.is_file() {
             if options.ext {
                 if let Some(ext) = file_path.extension() {
+                    // create dir for extension
                     let ext_dir = path.join(ext);
                     std::fs::create_dir_all(&ext_dir).unwrap();
+
+                    // move file to new dir
                     let new_path = ext_dir.join(file_path.file_name().unwrap());
                     std::fs::rename(&file_path, &new_path).unwrap();
-                    println!("Moved {:?} to {:?}", file_path, new_path);
+                    // dbg!("Moved {:?} to {:?}", file_path, new_path);
                 }
             }
             // Additional sorting criteria can be implemented here
