@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::cli::SortOptions;
 
 pub fn sort_dir(path: &Path, options: &SortOptions) {
-    dbg!("Sorting directory: {} {:?}", path.display(), options);
+    println!("Sorting directory: {} {:?}", path.display(), options);
 
     if options.ext {
         sort_dir_by_extension(path, options);
@@ -31,7 +31,7 @@ fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
 
                 let new_path = ext_dir.join(entry.file_name());
                 std::fs::rename(entry.path(), new_path).unwrap();
-                dbg!("Moved {:?} to {:?}", entry.file_name(), ext_dir);
+                // dbg!("Moved {:?} to {:?}", entry.file_name(), ext_dir);
             }
         } else if file_type.is_dir() && options.recursive {
             sort_dir_by_extension(&entry.path(), options);
@@ -73,7 +73,7 @@ fn sort_dir_semantic(path: &Path, _options: &SortOptions) {
             for file_path in file_paths {
                 let new_path = group_dir.join(file_path.file_name().unwrap());
                 std::fs::rename(&file_path, &new_path).unwrap();
-                dbg!("Moved {:?} to group '{}'", file_path.file_name().unwrap(), &cluster_name);
+                // dbg!("Moved {:?} to group '{}'", file_path.file_name().unwrap(), &cluster_name);
             }
         }
     }
