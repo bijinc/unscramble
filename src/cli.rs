@@ -29,7 +29,7 @@ pub enum Commands {
     /// Sort files in the directory based on criteria
     Sort {
         /// Sort files by extension
-        #[arg(short='e', long, default_value = "true")]
+        #[arg(short='e', long, default_value = "false")]
         ext: bool,
         
         /// Sort files by name
