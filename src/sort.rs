@@ -4,6 +4,8 @@ use std::collections::HashSet;
 
 use crate::cli::SortOptions;
 
+const THRESHOLD: f32 = 0.2;
+
 pub fn sort_dir(path: &Path, options: &SortOptions) {
     println!("Sorting directory: {} {:?}", path.display(), options);
 
@@ -118,7 +120,7 @@ fn cluster_similar_files(
         for (j, (path_j, features_j)) in file_features.iter().enumerate() {
             if i != j && !assigned[j] {
                 let similarity = calculate_similarity(features_i, features_j);
-                if similarity > 0.3 {  // Threshold for grouping
+                if similarity > THRESHOLD {
                     group_files.push(path_j.clone());
                     assigned[j] = true;
                 }
