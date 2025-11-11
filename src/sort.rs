@@ -119,7 +119,7 @@ fn cluster_similar_files(
         // Find similar files
         for (j, (path_j, features_j)) in file_features.iter().enumerate() {
             if i != j && !assigned[j] {
-                let similarity = calculate_similarity(features_i, features_j);
+                let similarity = jaccard_similarity(features_i, features_j);
                 if similarity > THRESHOLD {
                     group_files.push(path_j.clone());
                     assigned[j] = true;
@@ -133,7 +133,7 @@ fn cluster_similar_files(
 }
 
 /// Calculate Jaccard similarity between two feature sets
-fn calculate_similarity(features_a: &[String], features_b: &[String]) -> f32 {
+fn jaccard_similarity(features_a: &[String], features_b: &[String]) -> f32 {
     let set_a: HashSet<&String> = features_a.iter().collect();
     let set_b: HashSet<&String> = features_b.iter().collect();
     
@@ -145,4 +145,49 @@ fn calculate_similarity(features_a: &[String], features_b: &[String]) -> f32 {
     }
     
     return intersection.len() as f32 / union.len() as f32;
+}
+
+/// Calculate cosine similarity between two strings
+fn cosine_similarity(string_a: String, string_b: String) -> f32 {
+    // convert strings to lower case
+    let string_a_lower = string_a.to_lowercase();
+    let string_b_lower = string_b.to_lowercase();
+
+    // tokenize into words
+    let mut string_a_tokens: Vec<String> = string_a_lower
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    let mut string_b_tokens: Vec<String> = string_b_lower
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+
+    // remove stop words
+    let stop_words: HashSet<String> = vec!["the" "a" "is"];
+    string_a_tokens.retain(|token| !stop_words.contains(token));
+    string_b_tokens.retain(|token| !stop_words.contains(token));
+
+    // create embeddings for string_a and string_b
+
+
+
+
+
+
+    0.0
+}
+
+/// Vector dot product of two vectors
+fn dot_product(vec_a: &[f32], vec_b: &[f32]) -> Option<f32> {
+    if (vec_a.len() != vec_b.len()) {
+        return None;
+    }
+
+    let mut sum = 0.0
+    for i in 0..vec_a.len() {
+        sum += vec_a[i] * vec_b[i];
+    }
+
+    return Some(sum);
 }

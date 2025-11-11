@@ -3,7 +3,7 @@ use std::fs;
 use rand::Rng;
 
 pub fn populate_dir(path: &Path) {
-    println!("Populating dir: {}", path.display());
+    // println!("Populating dir: {}", path.display());
 
     let mut rng = rand::thread_rng();
     
@@ -85,7 +85,7 @@ pub fn populate_dir(path: &Path) {
 }
 
 pub fn clear_dir(path: &Path) {
-    println!("Clearing dir: {}", path.display());
+    // println!("Clearing dir: {}", path.display());
 
     match fs::read_dir(path) {
         Err(why) => println!("! {:?}", why.kind()),
