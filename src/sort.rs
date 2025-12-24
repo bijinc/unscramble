@@ -33,7 +33,6 @@ fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
 
                 let new_path = ext_dir.join(entry.file_name());
                 std::fs::rename(entry.path(), new_path).unwrap();
-                // dbg!("Moved {:?} to {:?}", entry.file_name(), ext_dir);
             }
         } else if file_type.is_dir() && options.recursive {
             sort_dir_by_extension(&entry.path(), options);
@@ -75,7 +74,6 @@ fn sort_dir_semantic(path: &Path, _options: &SortOptions) {
             for file_path in file_paths {
                 let new_path = group_dir.join(file_path.file_name().unwrap());
                 std::fs::rename(&file_path, &new_path).unwrap();
-                // dbg!("Moved {:?} to group '{}'", file_path.file_name().unwrap(), &cluster_name);
             }
         }
     }
@@ -169,7 +167,6 @@ fn cosine_similarity(string_a: String, string_b: String) -> f32 {
     string_b_tokens.retain(|token| !stop_words.contains(token));
 
     // create embeddings for string_a and string_b
-
 
 
 

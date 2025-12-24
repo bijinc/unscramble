@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use crate::populate;
 use crate::sort;
 
-/// A CLI tool for managing test sandbox directories
+/// A CLI tool for organizing files in a directory
 #[derive(Parser)]
 #[command(name = "unscramble")]
 #[command(about = "Semantic file organizer", long_about = None)]
