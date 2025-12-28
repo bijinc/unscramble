@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 rand = { version = "0.8" }
+finalfusion = "0.16"
+stop-words = "0.5.0"
