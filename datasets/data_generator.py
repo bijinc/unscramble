@@ -162,7 +162,7 @@ while len(filenames) < 50000:
 filenames = sorted(list(filenames))
 
 # Save to CSV
-output_file = './datasets/filename_training_dataset_v2.csv'
+output_file = 'filename_training_dataset_v2.csv'
 with open(output_file, 'w', newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
     writer.writerow(['filename'])
