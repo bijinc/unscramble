@@ -2,6 +2,9 @@ use std::path::Path;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use finalfusion::prelude::*;
+use stop_words::{get, Language, StopWords};
+
 use crate::cli::SortOptions;
 
 const THRESHOLD: f32 = 0.2;
@@ -146,33 +149,40 @@ fn jaccard_similarity(features_a: &[String], features_b: &[String]) -> f32 {
 }
 
 /// Calculate cosine similarity between two strings
-fn cosine_similarity(string_a: String, string_b: String) -> f32 {
-    // convert strings to lower case
-    let string_a_lower = string_a.to_lowercase();
-    let string_b_lower = string_b.to_lowercase();
-
+fn cosine_similarity(string_a: String, string_b: String) -> Option<f32> {
     // tokenize into words
-    let mut string_a_tokens: Vec<String> = string_a_lower
+    let mut string_a_tokens: Vec<String> = string_a
+        .to_lowercase()
         .split_whitespace()
         .map(str::to_string)
         .collect();
-    let mut string_b_tokens: Vec<String> = string_b_lower
+    let mut string_b_tokens: Vec<String> = string_b
+        .to_lowercase()
         .split_whitespace()
         .map(str::to_string)
         .collect();
 
-    // remove stop words
-    let stop_words: HashSet<String> = vec!["the" "a" "is"];
+    // Get the NLTK English stop words list
+    let stopwords_vec: Vec<String> = get(Language::English, "nltk").expect("Could not load stopwords");
+    let stop_words: HashSet<_> = stopwords_vec.iter().collect();
+    
     string_a_tokens.retain(|token| !stop_words.contains(token));
     string_b_tokens.retain(|token| !stop_words.contains(token));
 
     // create embeddings for string_a and string_b
+    let embeddings = Embeddings::read_word2vec_text("embeddings.txt")?;
+    let vec_a = embeddings.get_sentence_embedding(&string_a_tokens);
+    let vec_b = embeddings.get_sentence_embedding(&string_b_tokens);
 
+    let dot = dot_product(&vec_a, &vec_b)?;
+    let norm_a = dot_product(&vec_a, &vec_a)?.sqrt();
+    let norm_b = dot_product(&vec_b, &vec_b)?.sqrt();
 
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return Some(0.0);
+    }
 
-
-
-    0.0
+    return Some(dot / (norm_a * norm_b))
 }
 
 /// Vector dot product of two vectors
@@ -181,10 +191,10 @@ fn dot_product(vec_a: &[f32], vec_b: &[f32]) -> Option<f32> {
         return None;
     }
 
-    let mut sum = 0.0
-    for i in 0..vec_a.len() {
-        sum += vec_a[i] * vec_b[i];
-    }
+    let sum = vec_a.iter()
+        .zip(vec_b.iter())
+        .map(|(a, b)| a * b)
+        .sum();
 
     return Some(sum);
 }
