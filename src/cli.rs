@@ -13,21 +13,33 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
     
-    /// Path to the directory
-    #[arg(short, long, default_value = "./test")]
-    pub path: PathBuf,
+    // /// Path to the directory
+    // #[arg(short, long, default_value = "./test")]
+    // pub path: PathBuf,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
     /// Populate the directory with test files
-    Populate,
+    Populate {
+        /// Directory to populate
+        #[arg(short='p', long, default_value = "./test")]
+        path: PathBuf,
+    },
     
     /// Clear all files from the directory
-    Clear,
+    Clear {
+        /// Directory to clear
+        #[arg(short='p', long, default_value = "./test")]
+        path: PathBuf,
+    },
     
     /// Sort files in the directory based on criteria
     Sort {
+        /// Directory to sort
+        #[arg(short='p', long, default_value = ".")]
+        path: PathBuf,
+
         /// Sort files by extension
         #[arg(short='e', long, default_value = "false")]
         ext: bool,
@@ -52,17 +64,17 @@ pub struct SortOptions {
 
 impl Commands {
     /// Execute the command with the given path
-    pub fn execute(&self, path: &Path) -> Result<(), String> {
+    pub fn execute(&self) -> Result<(), String> {
         match self {
-            Commands::Populate => {
+            Commands::Populate { path } => {
                 populate::populate_dir(path);
                 Ok(())
             }
-            Commands::Clear => {
+            Commands::Clear { path }=> {
                 populate::clear_dir(path);
                 Ok(())
             }
-            Commands::Sort { ext, name, recursive } => {
+            Commands::Sort { path, ext, name, recursive } => {
                 let options = SortOptions {
                     ext: *ext,
                     name: *name,
