@@ -8,6 +8,7 @@ clap = { version = "4.5", features = ["derive"] }
 finalfusion = { version = "0.17", features = ["memmap"] }
 stop-words = "0.9.0"
 const_format = "0.2"
+rayon = "1.11"
 
 [profile.dev]
 debug = "line-tables-only"

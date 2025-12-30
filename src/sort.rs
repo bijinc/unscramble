@@ -1,16 +1,18 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use finalfusion::prelude::*;
 use finalfusion::embeddings::Embeddings;
+use rayon::prelude::*;
 use stop_words;
 
 use crate::cli::SortOptions;
 use crate::state::State;
 
 const JACCARD_THRESHOLD: f32 = 0.2;
-const FASTTEXT_THRESHOLD: f32 = 0.6;
+const FASTTEXT_THRESHOLD: f32 = 0.5;
 
 pub fn sort_dir(state: &State, path: &Path, options: &SortOptions) {
     println!("Sorting directory: {} {:?}", path.display(), options);
@@ -65,29 +67,37 @@ fn sort_dir_semantic(path: &Path, options: &SortOptions, embeddings: &Embeddings
     }
 
     // extract features
-    let file_features: Vec<(PathBuf, Vec<String>)> = files.iter()
+    println!("Extracting features...");
+    let mut start = Instant::now();
+    let file_features: Vec<(PathBuf, Vec<String>)> = files.par_iter()
         .map(|file| {
             let filename = file.file_name().to_string_lossy().to_string();
             let features = extract_filename_features(&filename);
             (file.path(), features)
         })
         .collect();
+    let mut duration = start.elapsed();
+    println!("Done! Extracted in {:.2?}", duration);
 
     // cluster files based on similar features
     let clusters = cluster_similar_files(&file_features, options, embeddings);
 
     // move files using clusters
-    for (cluster_name, file_paths) in clusters {
+    println!("Rearranging...");
+    start = Instant::now();
+    clusters.par_iter().for_each(|(cluster_name, file_paths)| {
         if file_paths.len() > 1 {  // Only create folder if there are multiple files
-            let group_dir = path.join(&cluster_name);
+            let group_dir = path.join(cluster_name);
             fs::create_dir_all(&group_dir).unwrap();
             
             for file_path in file_paths {
                 let new_path = group_dir.join(file_path.file_name().unwrap());
-                fs::rename(&file_path, &new_path).unwrap();
+                fs::rename(file_path, &new_path).unwrap();
             }
         }
-    }
+    });
+    duration = start.elapsed();
+    println!("Done! Took {:.2?}", duration);
 }
 
 fn extract_filename_features(filename: &str) -> Vec<String> {
@@ -148,7 +158,7 @@ fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &Sor
                     JACCARD_THRESHOLD
                 };
 
-                println!("similarity: {}, threshold: {}", similarity, threshold);
+                // println!("similarity: {}, threshold: {}", similarity, threshold);
                 
                 if similarity > threshold {
                     group_files.push(path_j.clone());
