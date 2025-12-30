@@ -209,31 +209,6 @@ fn calculate_feature_similarity(features_a: &[String], features_b: &[String], mo
     return max_sim;
 }
 
-/// Average embeddings for a list of features
-fn average_feature_embeddings(features: &[String], model: &Embeddings<VocabWrap, StorageWrap>) -> Option<Vec<f32>> {
-    let mut sum_vec: Option<Vec<f32>> = None;
-    let mut count = 0;
-    
-    for feature in features {
-        if let Some(embedding) = model.embedding(feature) {
-            if sum_vec.is_none() {
-                sum_vec = Some(embedding.to_vec());
-            } else {
-                let sum = sum_vec.as_mut().unwrap();
-                for (i, &val) in embedding.iter().enumerate() {
-                    sum[i] += val;
-                }
-            }
-            count += 1;
-        }
-    }
-    
-    sum_vec.map(|mut vec| {
-        vec.iter_mut().for_each(|v| *v /= count as f32);
-        vec
-    })
-}
-
 /// Calculate cosine similarity between two vectors
 fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
     if vec_a.len() != vec_b.len() || vec_a.is_empty() {
