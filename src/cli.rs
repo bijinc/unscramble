@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, value_parser};
 
 use crate::populate;
 use crate::sort;
@@ -23,21 +23,21 @@ pub enum Commands {
     /// Populate the directory with test files
     Populate {
         /// Directory to populate
-        #[arg(short='p', long, default_value = "./test")]
+        #[arg(short='p', long, value_parser = value_parser!(PathBuf), default_value = "./test")]
         path: PathBuf,
     },
     
     /// Clear all files from the directory
     Clear {
         /// Directory to clear
-        #[arg(short='p', long, default_value = "./test")]
+        #[arg(short='p', long, value_parser = value_parser!(PathBuf), default_value = "./test")]
         path: PathBuf,
     },
     
     /// Sort files in the directory based on criteria
     Sort {
         /// Directory to sort
-        #[arg(short='p', long, default_value = ".")]
+        #[arg(short='p', long, value_parser = value_parser!(PathBuf), default_value = ".")]
         path: PathBuf,
 
         /// Sort files by extension
@@ -67,14 +67,17 @@ impl Commands {
     pub fn execute(&self) -> Result<(), String> {
         match self {
             Commands::Populate { path } => {
+                validate_path(&path);
                 populate::populate_dir(path);
                 Ok(())
             }
-            Commands::Clear { path }=> {
+            Commands::Clear { path } => {
+                validate_path(&path);
                 populate::clear_dir(path);
                 Ok(())
             }
             Commands::Sort { path, ext, name, recursive } => {
+                validate_path(&path);
                 let options = SortOptions {
                     ext: *ext,
                     name: *name,
@@ -85,4 +88,14 @@ impl Commands {
             }
         }
     }
+}
+
+fn validate_path(path: &PathBuf) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", path.display()));
+    }
+    if !path.is_dir() {
+        return Err(format!("Path is not a directory: {}", path.display()));
+    }
+    Ok(())
 }
