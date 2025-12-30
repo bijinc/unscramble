@@ -1,34 +1,32 @@
-use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::BufReader;
+use std::path::{Path, PathBuf};
 
 use finalfusion::prelude::*;
 use finalfusion::embeddings::Embeddings;
-
 use stop_words;
 
 use crate::cli::SortOptions;
+use crate::state::State;
 
 const JACCARD_THRESHOLD: f32 = 0.2;
-const FASTTEXT_THRESHOLD: f32 = 0.99;
+const FASTTEXT_THRESHOLD: f32 = 0.6;
 
-// const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_embeddings.bin", MAIN_SEPARATOR);
-// const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_full_embeddings.bin", MAIN_SEPARATOR);
-// const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_domain_embeddings.bin", MAIN_SEPARATOR);
-const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}crawl-300d-2M.vec", MAIN_SEPARATOR);
-
-pub fn sort_dir(path: &Path, options: &SortOptions) {
+pub fn sort_dir(state: &State, path: &Path, options: &SortOptions) {
     println!("Sorting directory: {} {:?}", path.display(), options);
 
     if options.ext {
         sort_dir_by_extension(path, options);
     } else {
-        // sort semantically by name
-        sort_dir_semantic(path, options);
+        if let Some(embeddings) = &state.embeddings {
+            // sort semantically by name
+            sort_dir_semantic(path, options, embeddings.as_ref());
+        } else {
+            eprintln!("Embeddings not loaded");
+        }
     }
 }
 
+/// Sort files by their extension, recursively if specified
 fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
     let entries = std::fs::read_dir(path).unwrap();
 
@@ -52,7 +50,7 @@ fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
     }
 }
 
-fn sort_dir_semantic(path: &Path, options: &SortOptions) {
+fn sort_dir_semantic(path: &Path, options: &SortOptions, embeddings: &Embeddings<VocabWrap, StorageWrap>) {
     // get all files
     let files: Vec<std::fs::DirEntry> = std::fs::read_dir(path)
         .unwrap()
@@ -75,7 +73,7 @@ fn sort_dir_semantic(path: &Path, options: &SortOptions) {
         .collect();
 
     // cluster files based on similar features
-    let clusters = cluster_similar_files(&file_features, &options);
+    let clusters = cluster_similar_files(&file_features, options, embeddings);
 
     // move files using clusters
     for (cluster_name, file_paths) in clusters {
@@ -116,12 +114,9 @@ fn extract_filename_features(filename: &str) -> Vec<String> {
     return features;
 }
 
-fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &SortOptions) -> HashMap<String, Vec<PathBuf>> {
+fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &SortOptions, embeddings: &Embeddings<VocabWrap, StorageWrap>) -> HashMap<String, Vec<PathBuf>> {
     let mut groups: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut assigned: Vec<bool> = vec![false; file_features.len()];
-
-    // Preload FastText model for all comparisons
-    let model = load_model();
     
     for (i, (path_i, features_i)) in file_features.iter().enumerate() {
         if assigned[i] {
@@ -141,7 +136,7 @@ fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &Sor
         for (j, (path_j, features_j)) in file_features.iter().enumerate() {
             if i != j && !assigned[j] {
                 let similarity = if options.name {
-                    calculate_feature_similarity(features_i, features_j, &model)
+                    calculate_feature_similarity(features_i, features_j, embeddings)
                 } else {
                     jaccard_similarity(features_i, features_j)
                 };
@@ -245,9 +240,9 @@ fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
         return 0.0;
     }
 
-    let dot = dot_product(&vec_a, &vec_b).unwrap_or(0.0);
-    let norm_a = dot_product(&vec_a, &vec_a).unwrap_or(0.0).sqrt();
-    let norm_b = dot_product(&vec_b, &vec_b).unwrap_or(0.0).sqrt();
+    let dot = dot_product(vec_a, vec_b).unwrap_or(0.0);
+    let norm_a = dot_product(vec_a, vec_a).unwrap_or(0.0).sqrt();
+    let norm_b = dot_product(vec_b, vec_b).unwrap_or(0.0).sqrt();
 
     if norm_a == 0.0 || norm_b == 0.0 {
         return 0.0;
@@ -268,25 +263,4 @@ fn dot_product(vec_a: &[f32], vec_b: &[f32]) -> Option<f32> {
         .sum();
 
     return Some(sum);
-}
-
-/// Loads the FastText embeddings model
-fn load_model() -> Embeddings<VocabWrap, StorageWrap> {
-    let embeddings_path: &Path = Path::new(EMBEDDINGS_PATH);
-
-    let file = File::open(embeddings_path).expect("Failed to open embeddings file");
-    let mut reader = BufReader::new(file);
-
-    // Check file extension to determine format
-    if embeddings_path.extension().and_then(|e| e.to_str()) == Some("vec") {
-        // Load .vec format (text-based, returns SimpleVocab)
-        let embeddings = Embeddings::read_text_dims(&mut reader)
-            .expect("Failed to load .vec embeddings");
-        return embeddings.into();
-    } else {
-        // Load .bin format (binary FastText with subword info)
-        let embeddings = Embeddings::read_fasttext(&mut reader)
-            .expect("Failed to load FastText embeddings");
-        return embeddings.into();
-    }
 }

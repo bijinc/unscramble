@@ -1,8 +1,10 @@
-use std::path::PathBuf;
 use clap::{Parser, Subcommand, value_parser};
+use std::path::PathBuf;
+use std::process::exit;
 
 use crate::populate;
 use crate::sort;
+use crate::state::State;
 
 /// A CLI tool for organizing files in a directory
 #[derive(Parser)]
@@ -64,38 +66,40 @@ pub struct SortOptions {
 
 impl Commands {
     /// Execute the command with the given path
-    pub fn execute(&self) -> Result<(), String> {
+    pub fn execute(&self, state: &State) -> Result<(), String> {
         match self {
             Commands::Populate { path } => {
-                validate_path(&path);
+                validate_path(path);
                 populate::populate_dir(path);
                 Ok(())
             }
             Commands::Clear { path } => {
-                validate_path(&path);
+                validate_path(path);
                 populate::clear_dir(path);
                 Ok(())
             }
             Commands::Sort { path, ext, name, recursive } => {
-                validate_path(&path);
+                validate_path(path);
                 let options = SortOptions {
                     ext: *ext,
                     name: *name,
                     recursive: *recursive,
                 };
-                sort::sort_dir(path, &options);
+                sort::sort_dir(state, path, &options);
                 Ok(())
             }
         }
     }
 }
 
-fn validate_path(path: &PathBuf) -> Result<(), String> {
+fn validate_path(path: &PathBuf) {
     if !path.exists() {
-        return Err(format!("Path does not exist: {}", path.display()));
+        eprintln!("Path does not exist: {}", path.display());
+        exit(1);
+        
     }
     if !path.is_dir() {
-        return Err(format!("Path is not a directory: {}", path.display()));
+        eprintln!("Path is not a directory: {}", path.display());
+        exit(1);
     }
-    Ok(())
 }
