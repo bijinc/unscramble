@@ -134,12 +134,6 @@ fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &Sor
             continue;
         }
         
-        // Find the most common feature as group name
-        let group_name = features_i
-            .first()
-            .map(|s| s.clone())
-            .unwrap_or_else(|| "misc".to_string());
-        
         let mut group_files = vec![path_i.clone()];
         assigned[i] = true;
         
@@ -151,39 +145,59 @@ fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &Sor
                 } else {
                     jaccard_similarity(features_i, features_j)
                 };
-                
+
                 let threshold = if options.name {
                     FASTTEXT_THRESHOLD
                 } else {
                     JACCARD_THRESHOLD
                 };
 
-                // println!("similarity: {}, threshold: {}", similarity, threshold);
-                
                 if similarity > threshold {
                     group_files.push(path_j.clone());
                     assigned[j] = true;
                 }
             }
         }
+        
+        // Find the best group name after clustering
+        let group_name = find_best_group_name(&group_files, file_features);
         groups.insert(group_name, group_files);
     }
-    
+
     return groups;
+}
+
+/// Find the most common feature across all files in a cluster
+fn find_best_group_name(group_files: &[PathBuf], file_features: &[(PathBuf, Vec<String>)]) -> String {
+    let mut feature_counts: HashMap<&String, usize> = HashMap::new();
+    
+    for path in group_files {
+        if let Some((_, features)) = file_features.iter().find(|(p, _)| p == path) {
+            for feature in features {
+                *feature_counts.entry(feature).or_insert(0) += 1;
+            }
+        }
+    }
+    
+    feature_counts
+        .into_iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(feature, _)| feature.clone())
+        .unwrap_or_else(|| "misc".to_string())
 }
 
 /// Calculate Jaccard similarity between two feature sets
 fn jaccard_similarity(features_a: &[String], features_b: &[String]) -> f32 {
     let set_a: HashSet<&String> = features_a.iter().collect();
     let set_b: HashSet<&String> = features_b.iter().collect();
-    
+
     let intersection: HashSet<&&String> = set_a.intersection(&set_b).collect();
     let union: HashSet<&&String> = set_a.union(&set_b).collect();
-    
+
     if union.is_empty() {
         return 0.0;
     }
-    
+
     return intersection.len() as f32 / union.len() as f32;
 }
 
