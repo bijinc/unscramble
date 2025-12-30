@@ -1,10 +1,7 @@
 use std::path::Path;
 use std::fs;
-use rand::Rng;
 
-pub fn populate_dir(path: &Path) {
-    let mut rng = rand::thread_rng();
-    
+pub fn populate_dir(path: &Path) {    
     // meeting notes - high similarity
     for i in 1..=5 {
         let filename = format!("meeting_notes_{}.txt", i);
