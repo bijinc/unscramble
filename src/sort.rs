@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use finalfusion::prelude::*;
@@ -28,7 +29,7 @@ pub fn sort_dir(state: &State, path: &Path, options: &SortOptions) {
 
 /// Sort files by their extension, recursively if specified
 fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
-    let entries = std::fs::read_dir(path).unwrap();
+    let entries = fs::read_dir(path).unwrap();
 
     for entry in entries {
         let entry = entry.unwrap();
@@ -39,10 +40,10 @@ fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
                 let ext_str = ext.to_string_lossy().to_lowercase();
                 let ext_dir = path.join(&ext_str);
 
-                std::fs::create_dir_all(&ext_dir).unwrap();
+                fs::create_dir_all(&ext_dir).unwrap();
 
                 let new_path = ext_dir.join(entry.file_name());
-                std::fs::rename(entry.path(), new_path).unwrap();
+                fs::rename(entry.path(), new_path).unwrap();
             }
         } else if file_type.is_dir() && options.recursive {
             sort_dir_by_extension(&entry.path(), options);
@@ -52,7 +53,7 @@ fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
 
 fn sort_dir_semantic(path: &Path, options: &SortOptions, embeddings: &Embeddings<VocabWrap, StorageWrap>) {
     // get all files
-    let files: Vec<std::fs::DirEntry> = std::fs::read_dir(path)
+    let files: Vec<fs::DirEntry> = fs::read_dir(path)
         .unwrap()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.path().is_file())
@@ -64,7 +65,7 @@ fn sort_dir_semantic(path: &Path, options: &SortOptions, embeddings: &Embeddings
     }
 
     // extract features
-    let file_features: Vec<(std::path::PathBuf, Vec<String>)> = files.iter()
+    let file_features: Vec<(PathBuf, Vec<String>)> = files.iter()
         .map(|file| {
             let filename = file.file_name().to_string_lossy().to_string();
             let features = extract_filename_features(&filename);
@@ -79,11 +80,11 @@ fn sort_dir_semantic(path: &Path, options: &SortOptions, embeddings: &Embeddings
     for (cluster_name, file_paths) in clusters {
         if file_paths.len() > 1 {  // Only create folder if there are multiple files
             let group_dir = path.join(&cluster_name);
-            std::fs::create_dir_all(&group_dir).unwrap();
+            fs::create_dir_all(&group_dir).unwrap();
             
             for file_path in file_paths {
                 let new_path = group_dir.join(file_path.file_name().unwrap());
-                std::fs::rename(&file_path, &new_path).unwrap();
+                fs::rename(&file_path, &new_path).unwrap();
             }
         }
     }
