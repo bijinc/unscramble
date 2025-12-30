@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-finalfusion = "0.16"
+finalfusion = { version = "0.17", features = ["memmap"] }
 stop-words = "0.9.0"
 const_format = "0.2"
 
