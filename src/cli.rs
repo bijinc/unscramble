@@ -14,10 +14,6 @@ pub struct Cli {
     /// The command to execute
     #[command(subcommand)]
     pub command: Commands,
-    
-    // /// Path to the directory
-    // #[arg(short, long, default_value = "./test")]
-    // pub path: PathBuf,
 }
 
 #[derive(Subcommand)]
