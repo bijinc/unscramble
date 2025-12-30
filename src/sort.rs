@@ -1,13 +1,17 @@
-use std::path::Path;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::path::{Path, PathBuf, MAIN_SEPARATOR};
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::BufReader;
 
 use finalfusion::prelude::*;
-use stop_words::{get, Language, StopWords};
+use finalfusion::embeddings::Embeddings;
+
+use stop_words;
 
 use crate::cli::SortOptions;
 
 const THRESHOLD: f32 = 0.2;
+const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_embeddings.bin", MAIN_SEPARATOR);
 
 pub fn sort_dir(path: &Path, options: &SortOptions) {
     println!("Sorting directory: {} {:?}", path.display(), options);
@@ -87,21 +91,32 @@ fn extract_filename_features(filename: &str) -> Vec<String> {
         .rsplit_once('.')
         .map(|(name, _)| name)
         .unwrap_or(filename);
-
-    let features: Vec<String> = stem
+        
+    let mut features: Vec<String> = stem
         .split(|c: char| c == '_' || c == '-' || c == ' ' || c.is_numeric())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_lowercase())
         .collect();
+        
+    // Get the NLTK English stop words list
+    let stopwords_vec: Vec<String> = stop_words::get(stop_words::LANGUAGE::English)
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let stop_words: HashSet<_> = stopwords_vec.iter().collect();
+
+    // Remove stop words
+    features.retain(|token| !stop_words.contains(token));
 
     return features;
 }
 
-fn cluster_similar_files(
-    file_features: &[(std::path::PathBuf, Vec<String>)]
-) -> HashMap<String, Vec<std::path::PathBuf>> {
-    let mut groups: HashMap<String, Vec<std::path::PathBuf>> = HashMap::new();
+fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)]) -> HashMap<String, Vec<PathBuf>> {
+    let mut groups: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut assigned: Vec<bool> = vec![false; file_features.len()];
+
+    // Preload FastText model for all comparisons
+    let model = load_model();
     
     for (i, (path_i, features_i)) in file_features.iter().enumerate() {
         if assigned[i] {
@@ -120,7 +135,8 @@ fn cluster_similar_files(
         // Find similar files
         for (j, (path_j, features_j)) in file_features.iter().enumerate() {
             if i != j && !assigned[j] {
-                let similarity = jaccard_similarity(features_i, features_j);
+                // let similarity = jaccard_similarity(features_i, features_j);
+                let similarity = calculate_feature_similarity(features_i, features_j, &model);
                 if similarity > THRESHOLD {
                     group_files.push(path_j.clone());
                     assigned[j] = true;
@@ -148,46 +164,68 @@ fn jaccard_similarity(features_a: &[String], features_b: &[String]) -> f32 {
     return intersection.len() as f32 / union.len() as f32;
 }
 
-/// Calculate cosine similarity between two strings
-fn cosine_similarity(string_a: String, string_b: String) -> Option<f32> {
-    // tokenize into words
-    let mut string_a_tokens: Vec<String> = string_a
-        .to_lowercase()
-        .split_whitespace()
-        .map(str::to_string)
-        .collect();
-    let mut string_b_tokens: Vec<String> = string_b
-        .to_lowercase()
-        .split_whitespace()
-        .map(str::to_string)
-        .collect();
-
-    // Get the NLTK English stop words list
-    let stopwords_vec: Vec<String> = get(Language::English, "nltk").expect("Could not load stopwords");
-    let stop_words: HashSet<_> = stopwords_vec.iter().collect();
+/// Calculate similarity between two feature lists using FastText embeddings
+fn calculate_feature_similarity(features_a: &[String], features_b: &[String], model: &Embeddings<VocabWrap, StorageWrap>) -> f32 {
+    if features_a.is_empty() || features_b.is_empty() {
+        return 0.0;
+    }
     
-    string_a_tokens.retain(|token| !stop_words.contains(token));
-    string_b_tokens.retain(|token| !stop_words.contains(token));
-
-    // create embeddings for string_a and string_b
-    let embeddings = Embeddings::read_word2vec_text("embeddings.txt")?;
-    let vec_a = embeddings.get_sentence_embedding(&string_a_tokens);
-    let vec_b = embeddings.get_sentence_embedding(&string_b_tokens);
-
-    let dot = dot_product(&vec_a, &vec_b)?;
-    let norm_a = dot_product(&vec_a, &vec_a)?.sqrt();
-    let norm_b = dot_product(&vec_b, &vec_b)?.sqrt();
-
-    if norm_a == 0.0 || norm_b == 0.0 {
-        return Some(0.0);
+    // Average embeddings of all features
+    let vec_a = average_feature_embeddings(features_a, model);
+    let vec_b = average_feature_embeddings(features_b, model);
+    
+    if vec_a.is_none() || vec_b.is_none() {
+        return 0.0;
     }
 
-    return Some(dot / (norm_a * norm_b))
+    return cosine_similarity(&vec_a.unwrap(), &vec_b.unwrap());
+}
+
+/// Average embeddings for a list of features
+fn average_feature_embeddings(features: &[String], model: &Embeddings<VocabWrap, StorageWrap>) -> Option<Vec<f32>> {
+    let mut sum_vec: Option<Vec<f32>> = None;
+    let mut count = 0;
+    
+    for feature in features {
+        if let Some(embedding) = model.embedding(feature) {
+            if sum_vec.is_none() {
+                sum_vec = Some(embedding.to_vec());
+            } else {
+                let sum = sum_vec.as_mut().unwrap();
+                for (i, &val) in embedding.iter().enumerate() {
+                    sum[i] += val;
+                }
+            }
+            count += 1;
+        }
+    }
+    
+    sum_vec.map(|mut vec| {
+        vec.iter_mut().for_each(|v| *v /= count as f32);
+        vec
+    })
+}
+
+/// Calculate cosine similarity between two vectors
+fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
+    if vec_a.len() != vec_b.len() || vec_a.is_empty() {
+        return 0.0;
+    }
+
+    let dot = dot_product(&vec_a, &vec_b).unwrap_or(0.0);
+    let norm_a = dot_product(&vec_a, &vec_a).unwrap_or(0.0).sqrt();
+    let norm_b = dot_product(&vec_b, &vec_b).unwrap_or(0.0).sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+
+    return dot / (norm_a * norm_b);
 }
 
 /// Vector dot product of two vectors
 fn dot_product(vec_a: &[f32], vec_b: &[f32]) -> Option<f32> {
-    if (vec_a.len() != vec_b.len()) {
+    if vec_a.len() != vec_b.len() {
         return None;
     }
 
@@ -197,4 +235,18 @@ fn dot_product(vec_a: &[f32], vec_b: &[f32]) -> Option<f32> {
         .sum();
 
     return Some(sum);
+}
+
+/// Loads the FastText embeddings model
+fn load_model() -> Embeddings<VocabWrap, StorageWrap> {
+    let embeddings_path: &Path = Path::new(EMBEDDINGS_PATH);
+
+    let file = File::open(embeddings_path).expect("Failed to open embeddings file");
+    let mut reader = BufReader::new(file);
+
+    // Load the model using finalfusion's FastText compatibility
+    let embeddings = Embeddings::read_fasttext(&mut reader)
+        .expect("Failed to load FastText embeddings");
+
+    return embeddings.into();
 }
