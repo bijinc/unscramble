@@ -10,8 +10,13 @@ use stop_words;
 
 use crate::cli::SortOptions;
 
-const THRESHOLD: f32 = 0.2;
-const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_embeddings.bin", MAIN_SEPARATOR);
+const JACCARD_THRESHOLD: f32 = 0.2;
+const FASTTEXT_THRESHOLD: f32 = 0.99;
+
+// const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_embeddings.bin", MAIN_SEPARATOR);
+// const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_full_embeddings.bin", MAIN_SEPARATOR);
+// const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}fasttext_domain_embeddings.bin", MAIN_SEPARATOR);
+const EMBEDDINGS_PATH: &str = const_format::formatcp!("embeddings{}crawl-300d-2M.vec", MAIN_SEPARATOR);
 
 pub fn sort_dir(path: &Path, options: &SortOptions) {
     println!("Sorting directory: {} {:?}", path.display(), options);
@@ -19,7 +24,7 @@ pub fn sort_dir(path: &Path, options: &SortOptions) {
     if options.ext {
         sort_dir_by_extension(path, options);
     } else {
-        // default to semantic sort
+        // sort semantically by name
         sort_dir_semantic(path, options);
     }
 }
@@ -47,7 +52,7 @@ fn sort_dir_by_extension(path: &Path, options: &SortOptions) {
     }
 }
 
-fn sort_dir_semantic(path: &Path, _options: &SortOptions) {
+fn sort_dir_semantic(path: &Path, options: &SortOptions) {
     // get all files
     let files: Vec<std::fs::DirEntry> = std::fs::read_dir(path)
         .unwrap()
@@ -70,7 +75,7 @@ fn sort_dir_semantic(path: &Path, _options: &SortOptions) {
         .collect();
 
     // cluster files based on similar features
-    let clusters = cluster_similar_files(&file_features);
+    let clusters = cluster_similar_files(&file_features, &options);
 
     // move files using clusters
     for (cluster_name, file_paths) in clusters {
@@ -111,7 +116,7 @@ fn extract_filename_features(filename: &str) -> Vec<String> {
     return features;
 }
 
-fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)]) -> HashMap<String, Vec<PathBuf>> {
+fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &SortOptions) -> HashMap<String, Vec<PathBuf>> {
     let mut groups: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut assigned: Vec<bool> = vec![false; file_features.len()];
 
@@ -135,9 +140,21 @@ fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)]) -> HashMap<St
         // Find similar files
         for (j, (path_j, features_j)) in file_features.iter().enumerate() {
             if i != j && !assigned[j] {
-                // let similarity = jaccard_similarity(features_i, features_j);
-                let similarity = calculate_feature_similarity(features_i, features_j, &model);
-                if similarity > THRESHOLD {
+                let similarity = if options.name {
+                    calculate_feature_similarity(features_i, features_j, &model)
+                } else {
+                    jaccard_similarity(features_i, features_j)
+                };
+                
+                let threshold = if options.name {
+                    FASTTEXT_THRESHOLD
+                } else {
+                    JACCARD_THRESHOLD
+                };
+
+                println!("similarity: {}, threshold: {}", similarity, threshold);
+                
+                if similarity > threshold {
                     group_files.push(path_j.clone());
                     assigned[j] = true;
                 }
@@ -164,21 +181,37 @@ fn jaccard_similarity(features_a: &[String], features_b: &[String]) -> f32 {
     return intersection.len() as f32 / union.len() as f32;
 }
 
-/// Calculate similarity between two feature lists using FastText embeddings
+/// Calculate similarity between two feature lists using maximum pairwise similarity
 fn calculate_feature_similarity(features_a: &[String], features_b: &[String], model: &Embeddings<VocabWrap, StorageWrap>) -> f32 {
     if features_a.is_empty() || features_b.is_empty() {
         return 0.0;
     }
     
-    // Average embeddings of all features
-    let vec_a = average_feature_embeddings(features_a, model);
-    let vec_b = average_feature_embeddings(features_b, model);
+    // Get embeddings for all features
+    let embeddings_a: Vec<Vec<f32>> = features_a.iter()
+        .filter_map(|f| model.embedding(f).map(|e| e.to_vec()))
+        .collect();
     
-    if vec_a.is_none() || vec_b.is_none() {
+    let embeddings_b: Vec<Vec<f32>> = features_b.iter()
+        .filter_map(|f| model.embedding(f).map(|e| e.to_vec()))
+        .collect();
+    
+    if embeddings_a.is_empty() || embeddings_b.is_empty() {
         return 0.0;
     }
-
-    return cosine_similarity(&vec_a.unwrap(), &vec_b.unwrap());
+    
+    // Find maximum similarity across all pairs
+    let mut max_sim = 0.0;
+    for emb_a in &embeddings_a {
+        for emb_b in &embeddings_b {
+            let sim = cosine_similarity(emb_a, emb_b);
+            if sim > max_sim {
+                max_sim = sim;
+            }
+        }
+    }
+    
+    return max_sim;
 }
 
 /// Average embeddings for a list of features
@@ -244,9 +277,16 @@ fn load_model() -> Embeddings<VocabWrap, StorageWrap> {
     let file = File::open(embeddings_path).expect("Failed to open embeddings file");
     let mut reader = BufReader::new(file);
 
-    // Load the model using finalfusion's FastText compatibility
-    let embeddings = Embeddings::read_fasttext(&mut reader)
-        .expect("Failed to load FastText embeddings");
-
-    return embeddings.into();
+    // Check file extension to determine format
+    if embeddings_path.extension().and_then(|e| e.to_str()) == Some("vec") {
+        // Load .vec format (text-based, returns SimpleVocab)
+        let embeddings = Embeddings::read_text_dims(&mut reader)
+            .expect("Failed to load .vec embeddings");
+        return embeddings.into();
+    } else {
+        // Load .bin format (binary FastText with subword info)
+        let embeddings = Embeddings::read_fasttext(&mut reader)
+            .expect("Failed to load FastText embeddings");
+        return embeddings.into();
+    }
 }
