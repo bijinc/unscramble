@@ -1,5 +1,5 @@
 import random
-import csv
+import os
 from datetime import datetime, timedelta
 
 # Categories and their variations
@@ -149,26 +149,30 @@ def generate_filename():
     return pattern(category)
 
 # Generate dataset
-print("Generating 50,000 filenames...")
+N = 100000
 filenames = set()
+print(f"Generating {N} filenames...")
 
-while len(filenames) < 50000:
+while len(filenames) < N:
     filename = generate_filename()
     filenames.add(filename)
     
-    print (f"Progress: {len(filenames)}/50000", end='\r', flush=True)
+    print (f"Progress: {len(filenames)}/{N}", end='\r', flush=True)
 
 # Convert to list and sort for consistency
 filenames = sorted(list(filenames))
 
-# Save to CSV
-output_file = 'filename_training_dataset_v2.csv'
-with open(output_file, 'w', newline='', encoding='utf-8') as f:
-    writer = csv.writer(f)
-    writer.writerow(['filename'])
-    for filename in filenames:
-        writer.writerow([filename])
+# Save to .txt file
+output_file = 'filename_training_dataset_v3.txt'
+if not os.path.exists(output_file):
+    with open(output_file, 'w') as f:
+        for filename in filenames:
+            f.write(filename + "\n")
 
 print(f"\nDataset generated successfully!")
 print(f"Total filenames: {len(filenames)}")
 print(f"Saved to: {output_file}")
+
+
+# Train FastText model
+
