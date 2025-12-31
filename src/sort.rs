@@ -8,7 +8,7 @@ use finalfusion::embeddings::Embeddings;
 use rayon::prelude::*;
 use stop_words;
 
-use crate::cli::SortOptions;
+use crate::cli::{SortMethod, SortOptions};
 use crate::state::State;
 
 const JACCARD_THRESHOLD: f32 = 0.2;
@@ -140,16 +140,16 @@ fn cluster_similar_files(file_features: &[(PathBuf, Vec<String>)], options: &Sor
         // Find similar files
         for (j, (path_j, features_j)) in file_features.iter().enumerate() {
             if i != j && !assigned[j] {
-                let similarity = if options.name {
-                    calculate_feature_similarity(features_i, features_j, embeddings)
-                } else {
+                let similarity = if options.method == SortMethod::Jac {
                     jaccard_similarity(features_i, features_j)
+                } else {
+                    calculate_feature_similarity(features_i, features_j, embeddings)
                 };
 
-                let threshold = if options.name {
-                    FASTTEXT_THRESHOLD
-                } else {
+                let threshold = if options.method == SortMethod::Jac {
                     JACCARD_THRESHOLD
+                } else {
+                    FASTTEXT_THRESHOLD
                 };
 
                 if similarity > threshold {

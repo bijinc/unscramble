@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, value_parser};
+use clap::{Parser, Subcommand, ValueEnum, value_parser};
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -14,6 +14,15 @@ pub struct Cli {
     /// The command to execute
     #[command(subcommand)]
     pub command: Commands,
+}
+
+/// Sorting method options
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq)]
+pub enum SortMethod {
+    /// Jaccard similarity
+    Jac,
+    /// FastText embeddings
+    Fast,
 }
 
 #[derive(Subcommand)]
@@ -42,9 +51,9 @@ pub enum Commands {
         #[arg(short='e', long, default_value = "false")]
         ext: bool,
         
-        /// Sort files by name
-        #[arg(short='n', long, default_value = "false")]
-        name: bool,
+        /// Sort files using the given method
+        #[arg(short='m', long, num_args = 0..=1, default_value = "jac", default_missing_value = "jac")]
+        method: SortMethod,
         
         /// Recursively sort subdirectories
         #[arg(short='r', long, default_value = "false")]
@@ -56,7 +65,7 @@ pub enum Commands {
 #[derive(Debug, Clone)]
 pub struct SortOptions {
     pub ext: bool,
-    pub name: bool,
+    pub method: SortMethod,
     pub recursive: bool,
 }
 
@@ -74,11 +83,11 @@ impl Commands {
                 populate::clear_dir(path);
                 Ok(())
             }
-            Commands::Sort { path, ext, name, recursive } => {
+            Commands::Sort { path, ext, method, recursive } => {
                 validate_path(path);
                 let options = SortOptions {
                     ext: *ext,
-                    name: *name,
+                    method: *method,
                     recursive: *recursive,
                 };
                 sort::sort_dir(state, path, &options);
